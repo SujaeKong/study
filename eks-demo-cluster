@@ -5,11 +5,11 @@ kind: ClusterConfig
 
 metadata:
   name: eks-demo # 생성할 EKS 클러스터명
-  region: ${AWS_REGION} # 클러스터를 생성할 리전
-  version: "1.27"
+  region: ap-northeast-2 # 클러스터를 생성할 리전
+  version: "1.29"
 
 vpc:
-  cidr: "10.0.0.0/16" # 클러스터에서 사용할 VPC의 CIDR
+  cidr: "10.252.224.0/19" # 클러스터에서 사용할 VPC의 CIDR
   nat:
     gateway: HighlyAvailable
 
