@@ -1,0 +1,52 @@
+cd ~/environment
+
+mkdir -p manifests/alb-ingress-controller && cd manifests/alb-ingress-controller
+
+# 최종 폴더 위치
+/home/ubuntu/environment/manifests/alb-ingress-controller
+
+# 1. IAM OIDC(OpenID Connect) identity Provider를 생성
+# 쿠버네티스가 직접 관리하는 사용자 계정을 의미하는 service account에 IAM role을 사용
+eksctl utils associate-iam-oidc-provider \
+    --region ap-northeast-2 \
+    --cluster eks-demo \
+    --approve
+
+#  IAM OIDC 자격 증명 공급자는 IAM 콘솔 Identity providers 메뉴 혹은 아래의 명령어를 통해 확인
+aws eks describe-cluster --name eks-demo --query "cluster.identity.oidc.issuer" --output text
+
+#결과: https://oidc.eks.ap-northeast-2.amazonaws.com/id/F192A4AAAB5F874A6F32FA73EB6573C1
+
+# 위의 결과 값 연결
+aws iam list-open-id-connect-providers | grep F192A4AAAB5F874A6F32FA73EB6573C1
+
+# 2. AWS Load Balancer Controller에 부여할 IAM Policy를 생성
+curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json
+
+aws iam create-policy \
+    --policy-name AWSLoadBalancerControllerIAMPolicy \
+    --policy-document file://iam_policy.json
+
+#3. AWS Load Balancer Controller를 위한 ServiceAccount를 생성
+#account id 변경
+export ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+echo "export ACCOUNT_ID=${ACCOUNT_ID}" | tee -a ~/.bash_profile
+
+eksctl create iamserviceaccount \
+    --cluster eks-demo \
+    --namespace kube-system \
+    --name aws-load-balancer-controller \
+    --attach-policy-arn arn:aws:iam::$ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
+    --override-existing-serviceaccounts \
+    --approve
+
+#4.클러스터에 컨트롤러 추가하기
+kubectl apply \
+    --validate=false \
+    -f https://github.com/jetstack/cert-manager/releases/download/v1.13.5/cert-manager.yaml
+
+# load balancer controller yaml 파일 다운로드
+curl -Lo v2_7_2_full.yaml https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.7.2/v2_7_2_full.yaml
+
+
+
