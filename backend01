@@ -1,0 +1,86 @@
+
+# cd ~/environment/manifests/
+cd ~/environment/manifests/
+
+
+# deploy manifest 파일 생성
+cat <<EOF> flask-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-flask-backend
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-flask-backend
+  template:
+    metadata:
+      labels:
+        app: demo-flask-backend
+    spec:
+      containers:
+        - name: demo-flask-backend
+          image: $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/demo-flask-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+EOF
+
+# service manifest 파일을 생성
+cat <<EOF> flask-service.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-flask-backend
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: "/contents/aws"
+spec:
+  selector:
+    app: demo-flask-backend
+  type: NodePort
+  ports:
+    - port: 8080 # 서비스가 생성할 포트  
+      targetPort: 8080 # 서비스가 접근할 pod의 포트
+      protocol: TCP
+EOF
+
+
+# ngress manifest 파일 생성
+cat <<EOF> flask-ingress.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+    name: "flask-backend-ingress"
+    namespace: default
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/group.name: eks-demo-group
+      alb.ingress.kubernetes.io/group.order: '1'
+spec:
+    ingressClassName: alb
+    rules:
+    - http:
+        paths:
+          - path: /contents
+            pathType: Prefix
+            backend:
+              service:
+                name: "demo-flask-backend"
+                port:
+                  number: 8080
+EOF
+
+# 메니페스트 배포
+kubectl apply -f flask-deployment.yaml
+kubectl apply -f flask-service.yaml
+kubectl apply -f flask-ingress.yaml
+
+# 명령어 수행 
+echo http://$(kubectl get ingress/flask-backend-ingress -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')/contents/aws
+
