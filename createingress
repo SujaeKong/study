@@ -33,12 +33,12 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
 echo "export ACCOUNT_ID=${ACCOUNT_ID}" | tee -a ~/.bash_profile
 
 eksctl create iamserviceaccount \
-    --cluster eks-demo \
-    --namespace kube-system \
-    --name aws-load-balancer-controller \
-    --attach-policy-arn arn:aws:iam::$ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
-    --override-existing-serviceaccounts \
-    --approve
+  --cluster=eks-demo \
+  --namespace=kube-system \
+  --name=aws-load-balancer-controller \
+  --role-name AmazonEKSLoadBalancerControllerRole \
+  --attach-policy-arn=arn:aws:iam::$ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve
 
 #4.클러스터에 컨트롤러 추가하기
 kubectl apply \
@@ -65,5 +65,10 @@ kubectl apply -f v2_7_2_ingclass.yaml
 # 컨트롤러 설치 확인
 kubectl get deployment -n kube-system aws-load-balancer-controller
 
-kubectl get deployment -n kube-system aws-load-balancer-controller
+# SA 생성 확인
+kubectl get sa aws-load-balancer-controller -n kube-system -o yaml
 
+kubectl logs -n kube-system $(kubectl get po -n kube-system | egrep -o "aws-load-balancer[a-zA-Z0-9-]+")
+
+ALBPOD=$(kubectl get pod -n kube-system | egrep -o "aws-load-balancer[a-zA-Z0-9-]+")
+kubectl describe pod -n kube-system ${ALBPOD}
