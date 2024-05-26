@@ -1,0 +1,109 @@
+cd /home/ubuntu/environment
+git clone https://github.com/joozero/amazon-eks-frontend.git
+
+aws ecr create-repository \
+--repository-name demo-frontend \
+--image-scanning-configuration scanOnPush=true \
+--region ap-northeast-2
+
+# amazon-eks-frontend/src에서 App.js 파일과 page/UpperPage.js 파일에 있는 url 값을 앞서 배포한 인그레스 주소로 변경
+# App.js
+echo http://$(kubectl get ingress/flask-backend-ingress -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')/contents/'${search}'
+# page/UpperPage.js
+echo http://$(kubectl get ingress/nodejs-backend-ingress -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')/services/all
+
+
+# npm 설치
+sudo apt install npm
+cd /home/ubuntu/environment/amazon-eks-frontend
+npm install
+npm audit fix
+npm run build
+
+#ecr 이미지 업로드(ecr 콘솔로 들어가 명령어 참조)
+docker build -t demo-frontend .
+docker tag demo-frontend:latest $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/demo-frontend:latest
+docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/demo-frontend:latest
+
+
+cd /home/ubuntu/environment/manifests
+
+# frontend-deployment manifest 파일 생성
+cat <<EOF> frontend-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-frontend
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-frontend
+  template:
+    metadata:
+      labels:
+        app: demo-frontend
+    spec:
+      containers:
+        - name: demo-frontend
+          image: $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/demo-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+EOF
+
+# frontend-Service manifest 파일 생성
+cat <<EOF> frontend-service.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-frontend
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: "/"
+spec:
+  selector:
+    app: demo-frontend
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+EOF
+
+# frontend-ingress manifest 파일 생성
+cat <<EOF> frontend-ingress.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "frontend-ingress"
+  namespace: default
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: eks-demo-group
+    alb.ingress.kubernetes.io/group.order: '3'
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: "demo-frontend"
+                port:
+                  number: 80
+EOF
+
+
+kubectl apply -f frontend-deployment.yaml
+kubectl apply -f frontend-service.yaml
+kubectl apply -f frontend-ingress.yaml
+
+
+echo http://$(kubectl get ingress/frontend-ingress -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')
