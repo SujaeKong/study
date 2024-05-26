@@ -1,0 +1,81 @@
+cd ~/environment/manifests/
+
+# 컨테이너 이미지를 포함한 deploy manifest 생성
+cat <<EOF> nodejs-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-nodejs-backend
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-nodejs-backend
+  template:
+    metadata:
+      labels:
+        app: demo-nodejs-backend
+    spec:
+      containers:
+        - name: demo-nodejs-backend
+          image: public.ecr.aws/y7c9e1d2/joozero-repo:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+EOF
+
+# Service manifest 파일 생성
+cat <<EOF> nodejs-service.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-nodejs-backend
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: "/services/all"
+spec:
+  selector:
+    app: demo-nodejs-backend
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 3000
+      protocol: TCP
+EOF
+
+# ingress manifest 파일 생성
+cat <<EOF> nodejs-ingress.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "nodejs-backend-ingress"
+  namespace: default
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: eks-demo-group
+    alb.ingress.kubernetes.io/group.order: '2'
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+        paths:
+          - path: /services
+            pathType: Prefix
+            backend:
+              service:
+                name: "demo-nodejs-backend"
+                port:
+                  number: 8080
+EOF
+
+# 매니페스트 배포
+kubectl apply -f nodejs-deployment.yaml
+kubectl apply -f nodejs-service.yaml
+kubectl apply -f nodejs-ingress.yaml
+
+# 수행 결과 확인
+echo http://$(kubectl get ingress/nodejs-backend-ingress -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')/services/all
