@@ -8,7 +8,7 @@ mkdir -p manifests/alb-ingress-controller && cd manifests/alb-ingress-controller
 # 1. IAM OIDC(OpenID Connect) identity Provider를 생성
 # 쿠버네티스가 직접 관리하는 사용자 계정을 의미하는 service account에 IAM role을 사용
 eksctl utils associate-iam-oidc-provider \
-    --region ap-northeast-2 \
+    --region ap-northeast-2 \
     --cluster eks-demo \
     --approve
 
