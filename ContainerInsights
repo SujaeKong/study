@@ -1,0 +1,37 @@
+cd ~/environment
+mkdir -p manifests/cloudwatch-insight && cd manifests/cloudwatch-insight
+
+# namespace 생성
+kubectl create ns amazon-cloudwatch
+kubectl get ns
+
+#  CloudWatch 에이전트 및 Fluent Bit 설치
+ClusterName=eks-demo
+RegionName=ap-northeast-2
+FluentBitHttpPort='2020'
+FluentBitReadFromHead='Off'
+[[ ${FluentBitReadFromHead} = 'On' ]] && FluentBitReadFromTail='Off'|| FluentBitReadFromTail='On'
+[[ -z ${FluentBitHttpPort} ]] && FluentBitHttpServer='Off' || FluentBitHttpServer='On'
+
+#deploymnet manifest yaml
+wget https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-insights/latest/k8s-deployment-manifest-templates/deployment-mode/daemonset/container-insights-monitoring/quickstart/cwagent-fluent-bit-quickstart.yaml
+
+# 환경 변수값 적용
+sed -i 's/{{cluster_name}}/'eks-demo'/;s/{{region_name}}/'ap-northeast-2'/;s/{{http_server_toggle}}/"'${FluentBitHttpServer}'"/;s/{{http_server_port}}/"'${FluentBitHttpPort}'"/;s/{{read_from_head}}/"'${FluentBitReadFromHead}'"/;s/{{read_from_tail}}/"'${FluentBitReadFromTail}'"/' cwagent-fluent-bit-quickstart.yaml 
+
+# 매니페스트 파일 열어 객체 아래에 값을 spec 밑에 추가 들여쓰기 주의(템플릿 아래)
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: eks.amazonaws.com/compute-type
+          operator: NotIn
+          values:
+          - fargate
+
+kubectl apply -f cwagent-fluent-bit-quickstart.yaml 
+kubectl get po -n amazon-cloudwatch
+kubectl get daemonsets -n amazon-cloudwatch
+
+
