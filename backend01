@@ -1,4 +1,10 @@
 
+
+export ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+echo "export ACCOUNT_ID=${ACCOUNT_ID}" | tee -a ~/.bash_profile
+
+
+
 # cd ~/environment/manifests/
 cd ~/environment/manifests/
 
