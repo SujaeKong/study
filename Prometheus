@@ -1,0 +1,33 @@
+# Helm 설치 Helm CLI를 설치
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Helm 리포지토리 추가 
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+
+# Helm 설치 결과 확인
+helm list
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# prometheus-server를 NodePort로 expose
+kubectl expose service prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-np
+
+# 서비스 확인
+kubectl get service
+
+# service url 확인
+minikube service prometheus-server-np --url
+
+# 그라파나 설치
+
+helm repo add grafana https://grafana.github.io/helm-charts
+helm install grafana grafana/grafana
+kubectl expose service grafana --type=NodePort --target-port=3000 --name=grafana-np
+
+# admin password 확인
+kubectl get secret --namespace default grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
+# service url 확인
+minikube service grafana-np --url
