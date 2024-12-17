@@ -6,6 +6,12 @@ minikube start --driver=docker
 
 # Step 2: Helm 리포지토리 추가
 echo "Adding Helm repositories..."
+sudo apt update
+sudo apt install -y apt-transport-https ca-certificates curl
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm version
+
+
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
